@@ -1,0 +1,35 @@
+{
+  "name": "agentpact",
+  "version": "1.0.0",
+  "description": "**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**",
+  "main": "index.js",
+  "scripts": {
+    "create-pact": "tsx scripts/create-pact.ts",
+    "verify-chain": "tsx scripts/verify-chain.ts",
+    "test-storage": "tsx scripts/test-storage.ts",
+    "seed-score": "tsx scripts/seed-score.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hari-ramsss/Agent_Pact.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hari-ramsss/Agent_Pact/issues"
+  },
+  "homepage": "https://github.com/hari-ramsss/Agent_Pact#readme",
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "^1.2.6",
+    "dotenv": "^17.4.2",
+    "ethers": "^6.13.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0"
+  }
+}
