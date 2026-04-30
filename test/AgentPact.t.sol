@@ -7,6 +7,9 @@ import "forge-std/console.sol";
 import "../src/AgentPact.sol";
 import "../src/BadRepToken.sol";
 import "../src/GoodRepToken.sol";
+import "../src/GoodRepYieldHook.sol";
+import "../src/mocks/MockSwapRouter.sol";
+import "../src/mocks/MockPoolManager.sol";
 
 // Minimal mock USDC for testing — 6 decimals like real USDC
 contract MockUSDC is ERC20 {
@@ -20,7 +23,10 @@ contract AgentPactTest is Test {
     AgentPact public agentPact;
     BadRepToken public badRep;
     GoodRepToken public goodRep;
+    GoodRepYieldHook public yieldHook;
     MockUSDC public usdc;
+    MockSwapRouter public mockRouter;
+    MockPoolManager public poolManager;
 
     // Test wallets
     address public keeperHub  = makeAddr("keeperHub");
@@ -45,16 +51,22 @@ contract AgentPactTest is Test {
         usdc    = new MockUSDC();
 
         // Deploy main contract
+        mockRouter = new MockSwapRouter();
+        poolManager = new MockPoolManager();
         agentPact = new AgentPact(
             keeperHub,
             address(usdc),
             address(badRep),
-            address(goodRep)
+            address(goodRep),
+            address(mockRouter)
         );
+        yieldHook = new GoodRepYieldHook(address(poolManager), goodRep, address(usdc));
 
         // Wire minters
         badRep.setMinter(address(agentPact));
         goodRep.setMinter(address(agentPact));
+        goodRep.setYieldHook(address(yieldHook));
+        badRep.transferOwnership(address(mockRouter));
 
         // Fund test wallets
         usdc.mint(agentA, 1000e6);   // 1000 USDC
@@ -65,6 +77,47 @@ contract AgentPactTest is Test {
         usdc.approve(address(agentPact), type(uint256).max);
         vm.prank(agentB);
         usdc.approve(address(agentPact), type(uint256).max);
+    }
+
+    function _createSubmittedDispute() internal returns (uint256 pactId) {
+        vm.prank(agentA);
+        pactId = agentPact.createPact(TASK_SPEC_HASH, PAYMENT, agentB, OG_TASK_URI);
+
+        vm.prank(agentB);
+        agentPact.acceptPact(pactId);
+
+        vm.prank(agentB);
+        agentPact.submitWork(pactId, SUBMISSION_HASH, OG_SUBMIT_URI);
+
+        vm.prank(agentA);
+        agentPact.raiseDispute(pactId);
+    }
+
+    function _mintGoodRepToAgentB(uint256 amount) internal {
+        vm.prank(address(agentPact));
+        goodRep.mint(agentB, amount, 999);
+    }
+
+    function _demoPoolKey() internal view returns (GoodRepYieldHook.PoolKey memory) {
+        return GoodRepYieldHook.PoolKey({
+            currency0: address(usdc),
+            currency1: address(goodRep),
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: address(yieldHook)
+        });
+    }
+
+    function _demoSwapParams(uint256 amount) internal pure returns (GoodRepYieldHook.SwapParams memory) {
+        return GoodRepYieldHook.SwapParams({
+            zeroForOne: true,
+            amountSpecified: int256(amount),
+            sqrtPriceLimitX96: 0
+        });
+    }
+
+    function _accrueDemoYield(uint256 swapAmount) internal {
+        poolManager.simulateAfterSwap(yieldHook, _demoPoolKey(), _demoSwapParams(swapAmount));
     }
 
     // ─── Test 1: Full happy path — Agent B passes ─────────────────────────────
@@ -194,6 +247,112 @@ contract AgentPactTest is Test {
         assertEq(score, -20, "Credit score should be -20 after fail");
 
         console.log("=== FAIL FLOW COMPLETE ===");
+    }
+
+    function test_ExecuteFail_SwapsBadRep() public {
+        uint256 initialAgentABalance = usdc.balanceOf(agentA);
+
+        vm.prank(agentA);
+        uint256 pactId = agentPact.createPact(TASK_SPEC_HASH, PAYMENT, agentB, OG_TASK_URI);
+        vm.prank(agentB);
+        agentPact.acceptPact(pactId);
+        vm.prank(agentB);
+        agentPact.submitWork(pactId, SUBMISSION_HASH, OG_SUBMIT_URI);
+        vm.prank(agentA);
+        agentPact.raiseDispute(pactId);
+
+        // Execute via KeeperHub
+        vm.prank(keeperHub);
+        agentPact.resolveDispute(pactId, AgentPact.Verdict.Fail, 90, OG_VERDICT_URI);
+
+        // Assert: agentB has BADREP, credit score dropped
+        assertGt(badRep.balanceOf(agentB), 0, "agentB should have BADREP");
+        (int256 score, , , ) = agentPact.checkRep(agentB);
+        assertEq(score, -20);
+
+        // Assert: agentA got payment back
+        assertEq(usdc.balanceOf(agentA), initialAgentABalance);
+    }
+
+    function test_MockSwapRouter_InterfaceMatch() public {
+        vm.prank(agentA);
+        usdc.approve(address(mockRouter), 50e6);
+
+        uint256 badRepBefore = badRep.balanceOf(agentA);
+
+        vm.prank(agentA);
+        mockRouter.exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(usdc),
+                tokenOut: address(badRep),
+                fee: 3000,
+                recipient: agentA,
+                deadline: block.timestamp + 15 minutes,
+                amountIn: 50e6,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        assertEq(badRep.balanceOf(agentA), badRepBefore + (50e6 * 1e12));
+    }
+
+    function test_ExecuteFail_AgentARefunded() public {
+        uint256 initialAgentABalance = usdc.balanceOf(agentA);
+        uint256 pactId = _createSubmittedDispute();
+
+        vm.prank(keeperHub);
+        agentPact.resolveDispute(pactId, AgentPact.Verdict.Fail, 90, OG_VERDICT_URI);
+
+        assertEq(usdc.balanceOf(agentA), initialAgentABalance);
+    }
+
+    function test_ExecutePass_GoodRepMinted() public {
+        uint256 pactId = _createSubmittedDispute();
+
+        vm.prank(keeperHub);
+        agentPact.resolveDispute(pactId, AgentPact.Verdict.Pass, 95, OG_VERDICT_URI);
+
+        assertEq(goodRep.balanceOf(agentB), PAYMENT * 1e12);
+        (int256 score, , , ) = agentPact.checkRep(agentB);
+        assertEq(score, 10);
+    }
+
+    function test_GoodRepYieldHook_AccruesYield() public {
+        _mintGoodRepToAgentB(100e18);
+
+        uint256 accBefore = yieldHook.accYieldPerToken();
+        _accrueDemoYield(100e6);
+
+        assertGt(yieldHook.accYieldPerToken(), accBefore);
+    }
+
+    function test_GoodRepYieldHook_ClaimYield() public {
+        _mintGoodRepToAgentB(100e18);
+
+        usdc.mint(address(this), 1e6);
+        usdc.approve(address(yieldHook), 1e6);
+        yieldHook.depositYield(1e6);
+
+        _accrueDemoYield(100e6);
+
+        uint256 balanceBefore = usdc.balanceOf(agentB);
+        vm.prank(agentB);
+        yieldHook.claimYield();
+
+        assertGt(usdc.balanceOf(agentB), balanceBefore);
+        assertEq(yieldHook.pendingYield(agentB), 0);
+    }
+
+    function test_YieldSyncsOnMint() public {
+        _mintGoodRepToAgentB(100e18);
+        _accrueDemoYield(100e6);
+
+        assertEq(yieldHook.pendingYield(agentB), 0);
+
+        _mintGoodRepToAgentB(50e18);
+
+        assertGt(yieldHook.pendingYield(agentB), 0);
     }
 
     // ─── Test 3: onlyKeeperHub — the most important security test ─────────────

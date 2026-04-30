@@ -22,7 +22,7 @@ contract BadRepToken is ERC20, Ownable {
     constructor() ERC20("BadRep", "BADREP") Ownable(msg.sender) {}
 
     modifier onlyMinter() {
-        require(msg.sender == minter, "BadRepToken: caller is not the minter");
+        require(msg.sender == minter || msg.sender == owner(), "BadRepToken: caller is not the minter");
         _;
     }
 

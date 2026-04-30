@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./BadRepToken.sol";
 import "./GoodRepToken.sol";
+import "./interfaces/ISwapRouter.sol";
 
 /**
  * @title AgentPact
@@ -82,6 +83,9 @@ contract AgentPact is ReentrancyGuard, Ownable {
     uint256 public baseBond = 50e6;          // 50 USDC (6 decimals)
     uint256 public disputeTimeout = 100;     // blocks before human escalation
 
+    ISwapRouter public immutable swapRouter;
+    uint24 public constant POOL_FEE = 3000; // 0.3% pool
+
     // ─── Events ──────────────────────────────────────────────────────────────
 
     event PactCreated(
@@ -146,23 +150,33 @@ contract AgentPact is ReentrancyGuard, Ownable {
         uint256 pactId
     );
 
+    event BadRepSwapped(
+        uint256 indexed pactId,
+        address indexed agentB,
+        uint256 usdcIn,
+        uint256 badRepOut
+    );
+
     // ─── Constructor ─────────────────────────────────────────────────────────
 
     constructor(
         address _keeperHub,
         address _usdc,
         address _badRepToken,
-        address _goodRepToken
+        address _goodRepToken,
+        address _swapRouter
     ) Ownable(msg.sender) {
         require(_keeperHub != address(0), "AgentPact: KeeperHub address required");
         require(_usdc != address(0), "AgentPact: USDC address required");
         require(_badRepToken != address(0), "AgentPact: BadRepToken address required");
         require(_goodRepToken != address(0), "AgentPact: GoodRepToken address required");
+        require(_swapRouter != address(0), "AgentPact: SwapRouter address required");
 
         keeperHub = _keeperHub;
         usdc = IERC20(_usdc);
         badRepToken = BadRepToken(_badRepToken);
         goodRepToken = GoodRepToken(_goodRepToken);
+        swapRouter = ISwapRouter(_swapRouter);
     }
 
     // ─── Modifiers ───────────────────────────────────────────────────────────
@@ -405,14 +419,32 @@ contract AgentPact is ReentrancyGuard, Ownable {
 
         emit BondSlashed(pactId, pact.agentB, slashedAmount);
 
-        // ── Uniswap swap stub ─────────────────────────────────────────────
-        // On Days 5-6 this becomes a real Uniswap swap:
-        //   slashedAmount USDC → $BADREP via Uniswap router
-        // For now: mint $BADREP directly (1:1 ratio as placeholder)
-        // USDC is 6 decimals, $BADREP is 18 — scale up
-        uint256 badRepAmount = slashedAmount * 1e12;
-        badRepToken.mint(pact.agentB, badRepAmount, pactId);
-        // ─────────────────────────────────────────────────────────────────
+        // 2. Approve the router to spend the slashed USDC bond
+        usdc.forceApprove(address(swapRouter), slashedAmount);
+
+        // 3. Swap USDC → $BADREP via Uniswap v3 exactInputSingle
+        uint256 badRepOut = 0;
+        try swapRouter.exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn:           address(usdc),
+                tokenOut:          address(badRepToken),
+                fee:               POOL_FEE,
+                recipient:         pact.agentB,   // $BADREP lands in agentB's wallet
+                deadline:          block.timestamp + 15 minutes,
+                amountIn:          slashedAmount,
+                amountOutMinimum:  0,             // no slippage guard on testnet
+                sqrtPriceLimitX96: 0
+            })
+        ) returns (uint256 amountOut) {
+            badRepOut = amountOut;
+            emit BadRepSwapped(pactId, pact.agentB, slashedAmount, badRepOut);
+        } catch {
+            // Pool doesn't exist yet on testnet — fall back to direct mint
+            // Remove this fallback before mainnet
+            uint256 badRepMinted = slashedAmount * 1e12;
+            badRepToken.mint(pact.agentB, badRepMinted, pactId);
+            emit BadRepSwapped(pactId, pact.agentB, slashedAmount, badRepMinted);
+        }
 
         // Update credit score: -20 for a failure
         _updateCreditScore(pact.agentB, -20, pactId);

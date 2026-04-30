@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IGoodRepYieldHook.sol";
 
 /**
  * @title GoodRepToken ($GOODREP)
@@ -14,8 +15,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  */
 contract GoodRepToken is ERC20, Ownable {
     address public minter;
+    address public yieldHook;
 
     event MinterSet(address indexed newMinter);
+    event YieldHookSet(address indexed newYieldHook);
     event GoodRepMinted(address indexed agent, uint256 amount, uint256 pactId);
 
     constructor() ERC20("GoodRep", "GOODREP") Ownable(msg.sender) {}
@@ -31,7 +34,15 @@ contract GoodRepToken is ERC20, Ownable {
         emit MinterSet(_minter);
     }
 
+    function setYieldHook(address _yieldHook) external onlyOwner {
+        yieldHook = _yieldHook;
+        emit YieldHookSet(_yieldHook);
+    }
+
     function mint(address agent, uint256 amount, uint256 pactId) external onlyMinter {
+        if (yieldHook != address(0)) {
+            IGoodRepYieldHook(yieldHook).updateYield(agent);
+        }
         _mint(agent, amount);
         emit GoodRepMinted(agent, amount, pactId);
     }
