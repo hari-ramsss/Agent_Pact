@@ -21,6 +21,8 @@ lib/v4-periphery/
 
 # Docs
 docs/
+PLAN.md
+task*.md
 
 # Dotenv file
 .env
