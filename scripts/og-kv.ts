@@ -207,3 +207,24 @@ export async function appendAgentHistory(
   const txHash = await writeValue(historyKey(agentAddress), JSON.stringify(existing));
   console.log(`[0G KV] History updated. TX: ${txHash}`);
 }
+
+export async function getAgentHistory(agentAddress: string): Promise<any | null> {
+  console.log(`[0G KV] Reading arbitrator history for ${agentAddress}...`);
+
+  try {
+    const value = await kvClient.getValue(streamId, encodedKey(historyKey(agentAddress)));
+    if (value === null || value === undefined || !value.data || value.size === 0) {
+      return null;
+    }
+
+    return JSON.parse(Buffer.from(value.data, 'base64').toString('utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+export async function writeAgentHistory(agentAddress: string, data: any): Promise<void> {
+  console.log(`[0G KV] Writing arbitrator history for ${agentAddress}...`);
+  const txHash = await writeValue(historyKey(agentAddress), JSON.stringify(data));
+  console.log(`[0G KV] Arbitrator history written. TX: ${txHash}`);
+}

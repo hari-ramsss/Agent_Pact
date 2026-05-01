@@ -34,3 +34,31 @@ We use Uniswap in two directions:
 
 ### Why dual direction matters
 AgentPact uses Uniswap in both directions: punishment via v3-style BADREP swaps and reward via v4-style GOODREP yield accrual. Both paths are on-chain, KeeperHub-triggered, and visible through emitted events.
+
+## 0G Compute Integration - Days 7-8
+
+### Arbitrator Agent
+- Persistent autonomous TypeScript agent designed for 0G Compute or local demo execution.
+- Wallet address: configured through KEEPER_PRIVATE_KEY / KeeperHub execution wallet.
+- Model: qwen3:7b by default through an OpenAI-compatible 0G Compute endpoint.
+- Real 0G Compute remains the primary path when OG_COMPUTE_KEY is available. If the key is missing or the endpoint fails, the agent falls back to deterministic mock inference for demos; set OG_COMPUTE_STRICT=true to disable fallback.
+
+### 5-Step Reasoning Loop
+1. Parse Requirements - extracts exact task requirements from the stored spec.
+2. Analyze Submission - maps each requirement to YES/PARTIAL/NO.
+3. Identify Critical Failures - isolates blocking failures.
+4. Confidence Score - produces a 0-100 self-assessment.
+5. Final Verdict - emits a single PASS/FAIL decision.
+
+### 0G Storage Integration
+- Task specs: fetched from 0G Storage via the URI stored on Sepolia.
+- Submissions: fetched from 0G Storage via the URI stored on Sepolia.
+- Verdict records: full JSON reasoning trace written back to 0G Storage.
+- Audit trail: each reasoning step is uploaded as an append-style audit entry.
+
+### 0G KV Integration
+- Agent history is stored per agent in 0G KV.
+- Credit score cache remains available through the existing KV helpers.
+
+### Chain of custody
+Task spec -> 0G Storage -> hash on Sepolia -> Arbitrator reads 0G -> verdict to 0G Storage -> URI written on-chain through resolveDispute().

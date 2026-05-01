@@ -70,6 +70,14 @@ GOODREP_TOKEN_ADDRESS=
 MOCK_SWAP_ROUTER=
 V4_POOL_MANAGER=
 GOODREP_YIELD_HOOK=
+
+OG_COMPUTE_URL=https://api.0g.compute/v1
+OG_COMPUTE_KEY=
+OG_COMPUTE_MODEL=qwen3:7b
+OG_COMPUTE_STRICT=false
+KEEPER_PRIVATE_KEY=
+AGENT_B_PRIVATE_KEY=
+USDC_ADDRESS=
 ```
 
 Build and test:
@@ -78,6 +86,20 @@ Build and test:
 forge build
 forge test -vvv
 node node_modules/typescript/bin/tsc --noEmit
+```
+
+Run the arbitrator agent:
+
+```bash
+npm run arbitrator
+```
+
+If `OG_COMPUTE_KEY` is not funded or the 0G Compute endpoint is temporarily unavailable, the arbitrator automatically falls back to deterministic mock inference so the long-running agent, 0G Storage/KV memory, audit log, and on-chain resolution path can still be demonstrated. Set `OG_COMPUTE_STRICT=true` to require real 0G Compute and fail instead of falling back.
+
+Trigger the local/testnet e2e arbitration flow:
+
+```bash
+npm run test:e2e
 ```
 
 Deploy to Sepolia:
@@ -98,5 +120,6 @@ The current implementation supports the full hackathon/testnet demo path:
 - GOODREP reward minting
 - v4-style GOODREP yield accrual and claiming
 - 0G Storage/KV helper scripts for evidence and reputation data
+- autonomous 0G Compute arbitrator listener with 0G audit logs and KeeperHub resolution
 
 The real Uniswap v4 HookMiner/CREATE2 deployment path can be added later when targeting a production v4 deployment.
