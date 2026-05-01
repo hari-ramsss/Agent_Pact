@@ -8,6 +8,7 @@ import "../src/AgentPact.sol";
 import "../src/BadRepToken.sol";
 import "../src/GoodRepToken.sol";
 import "../src/GoodRepYieldHook.sol";
+import "../src/AgentPactRegistry.sol";
 import "../src/mocks/MockSwapRouter.sol";
 import "../src/mocks/MockPoolManager.sol";
 
@@ -455,5 +456,24 @@ contract AgentPactTest is Test {
         vm.prank(agentB);
         vm.expectRevert("AgentPact: pact not active");
         agentPact.submitWork(pactId, SUBMISSION_HASH, OG_SUBMIT_URI);
+    }
+
+    function test_Registry_RegisterAndRecord() public {
+        AgentPactRegistry registry = new AgentPactRegistry();
+
+        vm.prank(agentA);
+        registry.register("0g://agent-a-metadata", "employer");
+
+        vm.prank(agentB);
+        registry.register("0g://agent-b-metadata", "worker");
+
+        assertEq(registry.totalAgents(), 2);
+        assertEq(registry.getActiveAgents().length, 2);
+
+        registry.recordPact(0, agentA, agentB);
+
+        AgentPactRegistry.AgentProfile memory profile = registry.getProfile(agentB);
+        assertEq(profile.totalPacts, 1);
+        assertEq(profile.lastPactId, 0);
     }
 }

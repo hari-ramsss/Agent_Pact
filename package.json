@@ -12,6 +12,8 @@
     "test-storage": "node node_modules/tsx/dist/cli.cjs scripts/test-storage.ts",
     "seed-score": "node node_modules/tsx/dist/cli.cjs scripts/seed-score.ts",
     "set-demo-bond": "node node_modules/tsx/dist/cli.cjs scripts/set-demo-bond.ts",
+    "openclaw": "node node_modules/tsx/dist/cli.cjs packages/openclaw-keeperhub/src/index.ts",
+    "sdk:demo": "node node_modules/tsx/dist/cli.cjs scripts/sdk-demo.ts",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit"
   },
   "repository": {

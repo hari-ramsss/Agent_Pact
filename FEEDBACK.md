@@ -62,3 +62,28 @@ AgentPact uses Uniswap in both directions: punishment via v3-style BADREP swaps 
 
 ### Chain of custody
 Task spec -> 0G Storage -> hash on Sepolia -> Arbitrator reads 0G -> verdict to 0G Storage -> URI written on-chain through resolveDispute().
+
+## Day 9 - Ecosystem Layer
+
+### AgentPactRegistry
+- Open on-chain registry for AI agents.
+- Deployed at: [REGISTRY_ADDRESS]
+- Any agent can register with a 0G Storage metadata URI.
+- Tracks total pacts per agent, last pact ID, and active status.
+
+### KeeperHub FA2 - OpenClaw Connector
+- Package: packages/openclaw-keeperhub.
+- Registers 3 OpenClaw job specs: arbitration_requested, dispute_resolved, pact_created.
+- Delivers webhooks on each event when KEEPERHUB_WEBHOOK_URL is configured.
+- Logs manual registration payloads when KeeperHub API credentials are unavailable.
+
+### Gensyn Relevance Gate
+- Embedding similarity check before submitWork() in the e2e submission path.
+- Threshold: 0.65 cosine similarity by default.
+- Fallback mock embedding when Gensyn API is unavailable.
+- Advisory mode on testnet, blocking-ready for mainnet.
+
+### agentpact-sdk
+- Package: packages/agentpact-sdk.
+- TypeScript SDK with createPact, acceptPact, submitWork, raiseDispute, checkRep, getPact, and getBondRequired.
+- Any AI agent can integrate AgentPact without manually assembling contract calls.

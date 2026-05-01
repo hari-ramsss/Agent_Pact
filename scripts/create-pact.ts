@@ -1,12 +1,15 @@
 import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
-import { uploadToStorage, hashContent } from './og-storage';
+import { uploadToStorage, hashContent, downloadContent } from './og-storage';
 import { readCreditScore } from './og-kv';
+import { checkRelevance } from './gensyn-gate';
 
 dotenv.config();
 
 const AGENTPACT_ABI = [
   'function createPact(bytes32 taskSpecHash, uint256 paymentAmount, address workerAgent, string calldata og0StorageURI) external returns (uint256)',
+  'function acceptPact(uint256 pactId) external',
+  'function submitWork(uint256 pactId, bytes32 submissionHash, string calldata og0SubmissionURI) external',
   'function getPact(uint256 pactId) external view returns (tuple(uint256 id, address agentA, address agentB, uint256 paymentAmount, uint256 bondAmount, uint8 status, bytes32 taskSpecHash, string og0StorageURI, bytes32 submissionHash, string og0SubmissionURI, string og0VerdictURI, uint256 createdAt, uint256 disputeOpenedAt, uint256 timeoutBlocks))',
   'function getBondRequired(address agent) external view returns (uint256)',
   'event PactCreated(uint256 indexed pactId, address indexed agentA, uint256 paymentAmount, uint256 bondRequired, bytes32 taskSpecHash, string og0StorageURI)'
@@ -20,8 +23,10 @@ const ERC20_ABI = [
 const SEPOLIA_RPC = process.env.SEPOLIA_RPC_URL;
 const AGENTPACT_ADDRESS = process.env.AGENTPACT_ADDRESS;
 const AGENT_A_PRIVATE_KEY = process.env.AGENT_A_PRIVATE_KEY || process.env.PRIVATE_KEY;
+const AGENT_B_PRIVATE_KEY = process.env.AGENT_B_PRIVATE_KEY;
 const AGENT_B_ADDRESS = process.env.AGENT_B_ADDRESS;
 const SEPOLIA_USDC = process.env.SEPOLIA_USDC_ADDRESS || '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+const DEMO_SUBMISSION = process.env.DEMO_SUBMISSION;
 
 if (!SEPOLIA_RPC || !AGENTPACT_ADDRESS || !AGENT_A_PRIVATE_KEY || !AGENT_B_ADDRESS) {
   throw new Error('Set SEPOLIA_RPC_URL, AGENTPACT_ADDRESS, AGENT_A_PRIVATE_KEY or PRIVATE_KEY, and AGENT_B_ADDRESS in .env');
@@ -109,21 +114,61 @@ async function createPactWithRealStorage() {
     })
     .find((parsed: ethers.LogDescription | null) => parsed?.name === 'PactCreated');
 
-  const pactId = event?.args?.pactId?.toString() ?? 'unknown';
-  console.log(`\nPact created. Pact ID: ${pactId}`);
+  const pactIdRaw = event?.args?.pactId;
+  const pactId = pactIdRaw !== undefined ? BigInt(pactIdRaw.toString()) : null;
+  console.log(`\nPact created. Pact ID: ${pactId !== null ? pactId.toString() : 'unknown'}`);
 
-  if (pactId !== 'unknown') {
+  if (pactId !== null) {
     const pact = await agentPact.getPact(pactId);
-    const uriMatch = pact.og0StorageURI === uploadResult.uri;
-    const hashMatch = pact.taskSpecHash.toLowerCase() === taskSpecHash.toLowerCase();
+    const storedTaskSpecHash = (pact.taskSpecHash ?? pact[6]) as string;
+    const storedTaskSpecUri = (pact.og0StorageURI ?? pact[7]) as string;
+    const storedBondAmount = (pact.bondAmount ?? pact[4]) as bigint;
+    const storedStatus = Number(pact.status ?? pact[5]);
+    const uriMatch = storedTaskSpecUri === uploadResult.uri;
+    const hashMatch = storedTaskSpecHash.toLowerCase() === taskSpecHash.toLowerCase();
 
     console.log('\n========== Summary ==========');
-    console.log(`Pact ID:          ${pactId}`);
+    console.log(`Pact ID:          ${pactId.toString()}`);
     console.log(`Task spec on 0G:  ${uploadResult.uri}`);
     console.log(`Hash on Sepolia:  ${taskSpecHash}`);
     console.log(`Bond required:    ${ethers.formatUnits(bondRequired, 6)} USDC`);
     console.log(`Agent B score:    ${creditScore}`);
     console.log(`Chain of custody: ${uriMatch && hashMatch ? 'VERIFIED' : 'BROKEN'}`);
+
+    if (DEMO_SUBMISSION && AGENT_B_PRIVATE_KEY) {
+      console.log('\nStep 7: Running submitWork flow with Gensyn relevance gate...');
+
+      const taskSpec = await downloadContent(uploadResult.uri);
+      const relevance = await checkRelevance(taskSpec, DEMO_SUBMISSION);
+      if (!relevance.passed) {
+        console.warn(`[GENSYN] Relevance warning: ${relevance.warning}`);
+        console.warn('[GENSYN] Proceeding anyway (advisory mode for testnet demo).');
+      }
+
+      const agentBSigner = new ethers.Wallet(AGENT_B_PRIVATE_KEY, provider);
+      const agentPactB = agentPact.connect(agentBSigner) as ethers.Contract;
+      const usdcB = usdc.connect(agentBSigner) as ethers.Contract;
+      const pactStatus = storedStatus;
+
+      if (pactStatus === 0) {
+        console.log(`Step 7a: Agent B approving bond (${ethers.formatUnits(storedBondAmount, 6)} USDC)...`);
+        const approveBondTx = await usdcB.approve(agentPactAddress, storedBondAmount);
+        await approveBondTx.wait();
+
+        console.log('Step 7b: Agent B accepting pact...');
+        const acceptTx = await agentPactB.acceptPact(pactId);
+        await acceptTx.wait();
+      }
+
+      console.log('Step 7c: Uploading submission to 0G Storage...');
+      const submissionUpload = await uploadToStorage(DEMO_SUBMISSION, 'demo-submission');
+      const submissionHash = hashContent(DEMO_SUBMISSION);
+
+      console.log('Step 7d: Calling submitWork()...');
+      const submitTx = await agentPactB.submitWork(pactId, submissionHash, submissionUpload.uri);
+      await submitTx.wait();
+      console.log(`submitWork() executed. TX: ${submitTx.hash}`);
+    }
   }
 }
 

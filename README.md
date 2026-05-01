@@ -70,6 +70,7 @@ GOODREP_TOKEN_ADDRESS=
 MOCK_SWAP_ROUTER=
 V4_POOL_MANAGER=
 GOODREP_YIELD_HOOK=
+REGISTRY_ADDRESS=
 
 OG_COMPUTE_URL=https://api.0g.compute/v1
 OG_COMPUTE_KEY=
@@ -78,6 +79,11 @@ OG_COMPUTE_STRICT=false
 KEEPER_PRIVATE_KEY=
 AGENT_B_PRIVATE_KEY=
 USDC_ADDRESS=
+GENSYN_API_URL=https://api.gensyn.ai/v1
+GENSYN_API_KEY=
+KEEPERHUB_API_URL=
+KEEPERHUB_API_KEY=
+KEEPERHUB_WEBHOOK_URL=
 ```
 
 Build and test:
@@ -102,6 +108,13 @@ Trigger the local/testnet e2e arbitration flow:
 npm run test:e2e
 ```
 
+Run the Day 9 ecosystem helpers:
+
+```bash
+npm run openclaw
+npm run sdk:demo
+```
+
 Deploy to Sepolia:
 
 ```bash
@@ -121,5 +134,6 @@ The current implementation supports the full hackathon/testnet demo path:
 - v4-style GOODREP yield accrual and claiming
 - 0G Storage/KV helper scripts for evidence and reputation data
 - autonomous 0G Compute arbitrator listener with 0G audit logs and KeeperHub resolution
+- AgentPactRegistry, OpenClaw/KeeperHub connector, Gensyn relevance gate, and SDK stub for ecosystem integrations
 
 The real Uniswap v4 HookMiner/CREATE2 deployment path can be added later when targeting a production v4 deployment.

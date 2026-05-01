@@ -7,10 +7,10 @@
     "resolveJsonModule": true,
     "strict": true,
     "outDir": "./dist",
-    "rootDir": "./scripts",
+    "rootDir": ".",
     "types": ["node"],
     "skipLibCheck": true,
     "ignoreDeprecations": "6.0"
   },
-  "include": ["scripts/**/*.ts"]
+  "include": ["scripts/**/*.ts", "packages/**/*.ts"]
 }

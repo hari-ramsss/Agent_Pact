@@ -8,6 +8,7 @@ import "../src/AgentPact.sol";
 import "../src/BadRepToken.sol";
 import "../src/GoodRepToken.sol";
 import "../src/GoodRepYieldHook.sol";
+import "../src/AgentPactRegistry.sol";
 import "../src/mocks/MockPoolManager.sol";
 import "../src/mocks/MockSwapRouter.sol";
 
@@ -51,6 +52,10 @@ contract Deploy is Script {
         );
         console.log("AgentPact    deployed at:", address(agentPact));
 
+        // 2b. Deploy ecosystem registry
+        AgentPactRegistry registry = new AgentPactRegistry();
+        console.log("AgentPactRegistry deployed at:", address(registry));
+
         // 3. Wire minters — must happen right after deployment
         badRep.setMinter(address(agentPact));
         goodRep.setMinter(address(agentPact));
@@ -66,6 +71,7 @@ contract Deploy is Script {
         console.log("AGENTPACT_ADDRESS=", address(agentPact));
         console.log("BADREP_TOKEN_ADDRESS=", address(badRep));
         console.log("GOODREP_TOKEN_ADDRESS=", address(goodRep));
+        console.log("REGISTRY_ADDRESS=", address(registry));
         console.log("MOCK_SWAP_ROUTER=", address(mockRouter));
         console.log("V4_POOL_MANAGER=", address(poolManager));
         console.log("GOODREP_YIELD_HOOK=", address(yieldHook));

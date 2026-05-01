@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
 import { uploadContent, hashContent } from '../og-storage';
+import { checkRelevance } from '../gensyn-gate';
 
 dotenv.config();
 
@@ -113,6 +114,12 @@ REQUIREMENTS:
   console.log('[E2E] Uploading intentionally bad submission...');
   const submissionURI = await uploadContent(submission, 'e2e-submission');
   const submissionHash = hashContent(submission);
+
+  const relevance = await checkRelevance(taskSpec, submission);
+  if (!relevance.passed) {
+    console.warn(`[E2E] Relevance gate warning: ${relevance.warning}`);
+    console.warn('[E2E] Proceeding because the gate is advisory for the testnet demo.');
+  }
 
   console.log('[E2E] Submitting work...');
   await (await agentPactB.submitWork(pactId, submissionHash, submissionURI)).wait();
