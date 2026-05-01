@@ -160,6 +160,11 @@ export async function uploadToStorage(
   );
 }
 
+export async function uploadContent(content: object | string, label?: string): Promise<string> {
+  const result = await uploadToStorage(content, label);
+  return result.uri;
+}
+
 // ── Core: download ────────────────────────────────────────────────────
 
 export async function downloadFromStorage(rootHash: string): Promise<string> {
@@ -199,6 +204,13 @@ export async function downloadFromStorage(rootHash: string): Promise<string> {
   }
 
   throw new Error(`Download failed for ${rootHash} on both turbo and standard indexers`);
+}
+
+export async function downloadContent(uriOrRootHash: string): Promise<string> {
+  const rootHash = uriOrRootHash.startsWith('0g://')
+    ? uriOrRootHash.slice('0g://'.length)
+    : uriOrRootHash;
+  return downloadFromStorage(rootHash);
 }
 
 // ── Verify chain of custody ───────────────────────────────────────────
