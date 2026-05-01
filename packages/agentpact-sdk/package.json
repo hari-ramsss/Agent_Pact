@@ -1,0 +1,11 @@
+{
+  "name": "@agentpact/sdk",
+  "version": "0.1.0",
+  "description": "SDK for AI agents to interact with the AgentPact protocol",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "keywords": ["agentpact", "ai-agents", "escrow", "uniswap", "0g"],
+  "dependencies": {
+    "ethers": "^6.13.1"
+  }
+}
