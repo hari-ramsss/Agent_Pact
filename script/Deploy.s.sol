@@ -9,8 +9,6 @@ import "../src/BadRepToken.sol";
 import "../src/GoodRepToken.sol";
 import "../src/GoodRepYieldHook.sol";
 import "../src/AgentPactRegistry.sol";
-import "../src/mocks/MockPoolManager.sol";
-import "../src/mocks/MockSwapRouter.sol";
 
 contract Deploy is Script {
     // Sepolia USDC address (Circle's testnet deployment)
@@ -28,18 +26,18 @@ contract Deploy is Script {
         console.log("BadRepToken  deployed at:", address(badRep));
         console.log("GoodRepToken deployed at:", address(goodRep));
 
-        // 1b. Deploy MockSwapRouter
-        MockSwapRouter mockRouter = new MockSwapRouter();
-        console.log("MockSwapRouter deployed at:", address(mockRouter));
+        // 1b. Use real Sepolia Uniswap V3 SwapRouter02
+        address swapRouter = 0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E;
+        console.log("Real SwapRouter being used at:", swapRouter);
 
-        // 1c. Deploy mock v4 PoolManager + GOODREP yield hook for testnet/demo
-        MockPoolManager poolManager = new MockPoolManager();
+        // 1c. Use real Sepolia v4 PoolManager + deploy GOODREP yield hook
+        address poolManager = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
         GoodRepYieldHook yieldHook = new GoodRepYieldHook(
-            address(poolManager),
+            poolManager,
             goodRep,
             SEPOLIA_USDC
         );
-        console.log("MockPoolManager deployed at:", address(poolManager));
+        console.log("Real PoolManager being used at:", poolManager);
         console.log("GoodRepYieldHook deployed at:", address(yieldHook));
 
         // 2. Deploy main contract
@@ -48,7 +46,7 @@ contract Deploy is Script {
             SEPOLIA_USDC,
             address(badRep),
             address(goodRep),
-            address(mockRouter)
+            swapRouter
         );
         console.log("AgentPact    deployed at:", address(agentPact));
 
@@ -60,8 +58,7 @@ contract Deploy is Script {
         badRep.setMinter(address(agentPact));
         goodRep.setMinter(address(agentPact));
         goodRep.setYieldHook(address(yieldHook));
-        // Grant MockSwapRouter minting rights by making it the owner
-        badRep.transferOwnership(address(mockRouter));
+        // Ownership remains with deployer for now
         console.log("Minters and yield hook set successfully");
 
         vm.stopBroadcast();
@@ -72,8 +69,8 @@ contract Deploy is Script {
         console.log("BADREP_TOKEN_ADDRESS=", address(badRep));
         console.log("GOODREP_TOKEN_ADDRESS=", address(goodRep));
         console.log("REGISTRY_ADDRESS=", address(registry));
-        console.log("MOCK_SWAP_ROUTER=", address(mockRouter));
-        console.log("V4_POOL_MANAGER=", address(poolManager));
+        console.log("MOCK_SWAP_ROUTER=", swapRouter);
+        console.log("V4_POOL_MANAGER=", poolManager);
         console.log("GOODREP_YIELD_HOOK=", address(yieldHook));
     }
 }

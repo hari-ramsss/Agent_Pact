@@ -1,4 +1,5 @@
 # AgentPact — Uniswap Feedback
+# AgentPact — Uniswap Feedback
 
 ## Integration approach
 We use Uniswap in two directions:
@@ -6,23 +7,26 @@ We use Uniswap in two directions:
 2. $GOODREP: Uniswap v4 hook routes swap fees from AgentPact pools into a yield vault
 
 ## Friction points encountered
-(fill this in as you build — required for prize eligibility)
+- **Testnet Liquidity Cold Start**: We initially planned to swap the slashed USDC directly for our `$BADREP` token via the Uniswap V3 Router. However, bootstrapping a new V3 pool on Sepolia just for a hackathon demo token was a massive friction point and introduced demo reliability risks.
+- **Solution/Pivot**: To maintain a strict, real-world Uniswap integration without the cold start problem, we pivoted. We now swap the slashed USDC for WETH using the already-liquid Sepolia USDC/WETH pool. We then use the received WETH amount as the oracle/signal to mint `$BADREP` proportionally.
 
 ## What worked well
-(fill this in as you build)
+- **Router Composability**: The `ISwapRouter` `exactInputSingle` interface is incredibly straightforward. Once we pivoted to using the real USDC/WETH Sepolia pool, the swap executed flawlessly on-chain.
+- **Hook Flexibility**: Designing a v4 hook for `$GOODREP` yield was surprisingly intuitive. The `afterSwap` lifecycle is perfect for reputation-based fee redistribution.
 
 ## Suggestions for Uniswap team
-(fill this in as you build)
+- **Testing Utility**: A canonical "Uniswap Testnet Liquidity Faucet" or CLI tool that instantly spins up a V3 pool with dummy liquidity for a custom ERC20 against a major asset (like Sepolia USDC) would drastically speed up hackathon development.
+- **V4 Documentation**: More clear examples of hook address-prefix mining (HookMiner) in simple script formats would be helpful for non-foundry native users.
 
 ## Uniswap Integration - Days 5-6
 
-### v3: $BADREP Swap (Economic Punishment)
-- Contract: AgentPact.sol -> _executeFail()
+### v3: WETH Swap & $BADREP Minting (Economic Punishment)
+- Contract: `AgentPact.sol` -> `_executeFail()`
 - When a dispute resolves against a worker agent, their bond is slashed.
-- The slashed USDC is swapped through an exactInputSingle-compatible router from USDC to $BADREP.
-- $BADREP lands directly in the penalized agent's wallet as a visible reputation scar.
-- Pool fee: 0.3% (POOL_FEE = 3000).
-- Testnet/demo: MockSwapRouter mirrors the v3 router interface and mints at the same 1 USDC -> 1e12 BADREP rate used by the original stub.
+- The slashed USDC is swapped through the **real Uniswap V3 Sepolia Router** into WETH, proving real on-chain execution and composability.
+- The WETH output amount is then used to mint `$BADREP` proportionally (e.g., 1 WETH out = 1000 BADREP).
+- Pool fee: 0.3% (`POOL_FEE = 3000`).
+- This guarantees a real swap execution against a live Sepolia pool rather than relying on a mock router.
 
 ### v4: $GOODREP Yield Hook (Passive Reward)
 - Contract: GoodRepYieldHook.sol

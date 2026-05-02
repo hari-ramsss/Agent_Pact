@@ -117,8 +117,7 @@ REQUIREMENTS:
 
   const relevance = await checkRelevance(taskSpec, submission);
   if (!relevance.passed) {
-    console.warn(`[E2E] Relevance gate warning: ${relevance.warning}`);
-    console.warn('[E2E] Proceeding because the gate is advisory for the testnet demo.');
+    throw new Error(`[E2E] Gensyn Relevance gate FAILED: ${relevance.warning}. Submission blocked!`);
   }
 
   console.log('[E2E] Submitting work...');

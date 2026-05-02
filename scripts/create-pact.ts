@@ -141,8 +141,7 @@ async function createPactWithRealStorage() {
       const taskSpec = await downloadContent(uploadResult.uri);
       const relevance = await checkRelevance(taskSpec, DEMO_SUBMISSION);
       if (!relevance.passed) {
-        console.warn(`[GENSYN] Relevance warning: ${relevance.warning}`);
-        console.warn('[GENSYN] Proceeding anyway (advisory mode for testnet demo).');
+        throw new Error(`[GENSYN] Relevance gate FAILED: ${relevance.warning}. Submission blocked!`);
       }
 
       const agentBSigner = new ethers.Wallet(AGENT_B_PRIVATE_KEY, provider);

@@ -68,7 +68,7 @@ async function processCase(cas: ArbitrationCase): Promise<void> {
       console.warn(`[Arbitrator] Agent history update failed: ${message}`);
     });
 
-    const txHash = await triggerKeeperHub(verdictRecord);
+    const dispatchId = await triggerKeeperHub(verdictRecord);
     await appendAuditEntry({
       pactId: cas.pactId,
       type: 'verdict_final',
@@ -77,11 +77,11 @@ async function processCase(cas: ArbitrationCase): Promise<void> {
         decision,
         confidence,
         verdictURI: verdictRecord.verdictURI,
-        txHash,
+        keeperHubDispatchId: dispatchId,
       },
     });
 
-    console.log(`[Arbitrator] Pact ${cas.pactId} resolved: ${decision} (${txHash})`);
+    console.log(`[Arbitrator] Pact ${cas.pactId} verdict submitted to KeeperHub: ${decision} (${dispatchId})`);
   } catch (err) {
     processedPacts.delete(cas.pactId);
     const message = err instanceof Error ? err.message : String(err);

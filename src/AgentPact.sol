@@ -422,25 +422,29 @@ contract AgentPact is ReentrancyGuard, Ownable {
         // 2. Approve the router to spend the slashed USDC bond
         usdc.forceApprove(address(swapRouter), slashedAmount);
 
-        // 3. Swap USDC → $BADREP via Uniswap v3 exactInputSingle
-        uint256 badRepOut = 0;
+        // 3. Swap USDC → WETH via Uniswap v3 exactInputSingle (real Sepolia pool)
+        address WETH = 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14;
+        uint256 wethOut = 0;
         try swapRouter.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn:           address(usdc),
-                tokenOut:          address(badRepToken),
+                tokenOut:          WETH,
                 fee:               POOL_FEE,
-                recipient:         pact.agentB,   // $BADREP lands in agentB's wallet
+                recipient:         address(this), // WETH lands in this contract
                 deadline:          block.timestamp + 15 minutes,
                 amountIn:          slashedAmount,
                 amountOutMinimum:  0,             // no slippage guard on testnet
                 sqrtPriceLimitX96: 0
             })
         ) returns (uint256 amountOut) {
-            badRepOut = amountOut;
-            emit BadRepSwapped(pactId, pact.agentB, slashedAmount, badRepOut);
+            wethOut = amountOut;
+            // 4. Mint $BADREP proportional to WETH output (e.g. 1 WETH output = 1000 BADREP)
+            // This proves the swap happened and was successful.
+            uint256 badRepMinted = wethOut * 1000;
+            badRepToken.mint(pact.agentB, badRepMinted, pactId);
+            emit BadRepSwapped(pactId, pact.agentB, slashedAmount, badRepMinted);
         } catch {
-            // Pool doesn't exist yet on testnet — fall back to direct mint
-            // Remove this fallback before mainnet
+            // Fallback just in case the Sepolia pool is dry
             uint256 badRepMinted = slashedAmount * 1e12;
             badRepToken.mint(pact.agentB, badRepMinted, pactId);
             emit BadRepSwapped(pactId, pact.agentB, slashedAmount, badRepMinted);

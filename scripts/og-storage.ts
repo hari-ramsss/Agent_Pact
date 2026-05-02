@@ -153,6 +153,11 @@ export async function uploadToStorage(
     console.error(`[0G Storage] Standard indexer also failed: ${secondError.message}`);
   }
 
+  if (process.env.OG_STORAGE_MOCK === 'true') {
+    console.warn(`[0G Storage] OG_STORAGE_MOCK=true. Bypassing upload and returning fake URI.`);
+    return { rootHash, uri: `0g://${rootHash}`, txHash: `0xmocktxhash` };
+  }
+
   throw new Error(
     `Upload failed on both turbo and standard indexers. ` +
     `This usually means the 0G testnet storage nodes are lagging behind the chain. ` +
@@ -201,6 +206,11 @@ export async function downloadFromStorage(rootHash: string): Promise<string> {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(`[0G Storage] ${label} download failed: ${message}`);
     }
+  }
+
+  if (process.env.OG_STORAGE_MOCK === 'true') {
+    console.warn(`[0G Storage] OG_STORAGE_MOCK=true. Bypassing download and returning fake content.`);
+    return '{"status": "mock download bypass enabled due to testnet outage"}';
   }
 
   throw new Error(`Download failed for ${rootHash} on both turbo and standard indexers`);
