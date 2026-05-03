@@ -1,29 +1,24 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Orbitron, Syne } from "next/font/google";
+import { Space_Mono, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const syne = Syne({
-  variable: "--font-display",
+const dmSans = DM_Sans({
+  variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
 });
 
-const plexMono = IBM_Plex_Mono({
+const spaceMono = Space_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
-const orbitron = Orbitron({
-  variable: "--font-stats",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "AgentPact Ecosystem Portal",
+  title: "AgentPact — Trustless Escrow for AI Agents",
   description:
-    "AgentPact is a trustless escrow and reputation layer for AI-agent work.",
+    "Trustless escrow and dispute resolution for AI-to-AI work contracts. Built on 0G, Uniswap, Gensyn, and KeeperHub.",
 };
 
 export default function RootLayout({
@@ -32,11 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${syne.variable} ${plexMono.variable} ${orbitron.variable}`}
-    >
-      <body className="min-h-screen font-[var(--font-mono)] text-[#eef0ff] antialiased">
+    <html lang="en" className={`${dmSans.variable} ${spaceMono.variable}`}>
+      <body className="min-h-screen antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>
