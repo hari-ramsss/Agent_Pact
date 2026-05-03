@@ -113,6 +113,11 @@ async function tryWriteValue(
  * Write a KV value with turbo→standard fallback and timeout protection.
  */
 async function writeValue(key: string, value: string): Promise<string> {
+  if (process.env.OG_STORAGE_MOCK === 'true') {
+    console.log(`[0G KV] (MOCK) KV write for key ${key}`);
+    return `0xmocktxhash-${Date.now()}`;
+  }
+
   let lastError: Error | null = null;
 
   // Attempt 1: turbo indexer

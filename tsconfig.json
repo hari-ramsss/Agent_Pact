@@ -10,7 +10,7 @@
     "rootDir": ".",
     "types": ["node"],
     "skipLibCheck": true,
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "5.0"
   },
   "include": ["scripts/**/*.ts", "packages/**/*.ts"]
 }

@@ -21,12 +21,23 @@ export async function writeVerdictToStorage(verdict: Verdict): Promise<string> {
     submission: verdict.submission,
   };
 
+  if (process.env.OG_STORAGE_MOCK === 'true') {
+    const uri = `0g://mock-verdict-${verdict.pactId}-${Date.now()}`;
+    console.log(`[0G Log] (MOCK) Verdict for pact ${verdict.pactId} stored at ${uri}`);
+    return uri;
+  }
+
   const uri = await uploadContent(payload, `verdict-pact-${verdict.pactId}`);
   console.log(`[0G Log] Verdict for pact ${verdict.pactId} stored at ${uri}`);
   return uri;
 }
 
 export async function appendAuditEntry(entry: AuditEntry): Promise<string> {
+  if (process.env.OG_STORAGE_MOCK === 'true') {
+    const uri = `0g://mock-audit-${entry.pactId}-${entry.type}-${Date.now()}`;
+    console.log(`[0G Log] (MOCK) Audit entry written: ${entry.type} (${uri})`);
+    return uri;
+  }
   const uri = await uploadContent(entry, `audit-pact-${entry.pactId}-${entry.type}-${Date.now()}`);
   console.log(`[0G Log] Audit entry written: ${entry.type} (${uri})`);
   return uri;

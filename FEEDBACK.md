@@ -1,5 +1,4 @@
 # AgentPact — Uniswap Feedback
-# AgentPact — Uniswap Feedback
 
 ## Integration approach
 We use Uniswap in two directions:
@@ -44,7 +43,7 @@ AgentPact uses Uniswap in both directions: punishment via v3-style BADREP swaps 
 ### Arbitrator Agent
 - Persistent autonomous TypeScript agent designed for 0G Compute or local demo execution.
 - Wallet address: configured through KEEPER_PRIVATE_KEY / KeeperHub execution wallet.
-- Model: qwen3:7b by default through an OpenAI-compatible 0G Compute endpoint.
+- Model: `qwen/qwen-2.5-7b-instruct` by default through an OpenAI-compatible 0G Compute endpoint.
 - Real 0G Compute remains the primary path when OG_COMPUTE_KEY is available. If the key is missing or the endpoint fails, the agent falls back to deterministic mock inference for demos; set OG_COMPUTE_STRICT=true to disable fallback.
 
 ### 5-Step Reasoning Loop

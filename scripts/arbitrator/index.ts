@@ -63,13 +63,19 @@ async function processCase(cas: ArbitrationCase): Promise<void> {
     };
 
     verdictRecord.verdictURI = await writeVerdictToStorage(verdictRecord);
-    await writeUpdatedHistory(cas.agentB, agentHistory, verdictRecord).catch((err) => {
+
+    // CRITICAL: Trigger KeeperHub FIRST — don't let slow KV writes block on-chain resolution
+    const dispatchId = await triggerKeeperHub(verdictRecord);
+    console.log(`[Arbitrator] Pact ${cas.pactId} verdict submitted to KeeperHub: ${decision} (${dispatchId})`);
+
+    // KV history write is non-blocking — fire and forget
+    writeUpdatedHistory(cas.agentB, agentHistory, verdictRecord).catch((err) => {
       const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[Arbitrator] Agent history update failed: ${message}`);
+      console.warn(`[Arbitrator] Agent history update failed (non-critical): ${message}`);
     });
 
-    const dispatchId = await triggerKeeperHub(verdictRecord);
-    await appendAuditEntry({
+    // Audit entry is also non-blocking
+    appendAuditEntry({
       pactId: cas.pactId,
       type: 'verdict_final',
       timestamp: Date.now(),
@@ -79,9 +85,7 @@ async function processCase(cas: ArbitrationCase): Promise<void> {
         verdictURI: verdictRecord.verdictURI,
         keeperHubDispatchId: dispatchId,
       },
-    });
-
-    console.log(`[Arbitrator] Pact ${cas.pactId} verdict submitted to KeeperHub: ${decision} (${dispatchId})`);
+    }).catch(() => {});
   } catch (err) {
     processedPacts.delete(cas.pactId);
     const message = err instanceof Error ? err.message : String(err);
