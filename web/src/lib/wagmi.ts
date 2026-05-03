@@ -11,6 +11,7 @@ export const wagmiConfig = createConfig(
     getDefaultConfig({
         appName,
         chains: [sepolia],
+        walletConnectProjectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "placeholder",
         transports: {
             [sepolia.id]: http(rpcUrl),
         },

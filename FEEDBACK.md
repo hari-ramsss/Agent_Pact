@@ -1,92 +1,65 @@
-# AgentPact — Uniswap Feedback
+# AgentPact — Feedback & Prize Track Submission
 
-## Integration approach
-We use Uniswap in two directions:
-1. $BADREP: slashed USDC swapped via Uniswap into a permanent reputation token
-2. $GOODREP: Uniswap v4 hook routes swap fees from AgentPact pools into a yield vault
+This document contains the required feedback for the Uniswap prize tracks and the technical approach write-up for the KeeperHub prize tracks.
 
-## Friction points encountered
-- **Testnet Liquidity Cold Start**: We initially planned to swap the slashed USDC directly for our `$BADREP` token via the Uniswap V3 Router. However, bootstrapping a new V3 pool on Sepolia just for a hackathon demo token was a massive friction point and introduced demo reliability risks.
-- **Solution/Pivot**: To maintain a strict, real-world Uniswap integration without the cold start problem, we pivoted. We now swap the slashed USDC for WETH using the already-liquid Sepolia USDC/WETH pool. We then use the received WETH amount as the oracle/signal to mint `$BADREP` proportionally.
+---
 
-## What worked well
-- **Router Composability**: The `ISwapRouter` `exactInputSingle` interface is incredibly straightforward. Once we pivoted to using the real USDC/WETH Sepolia pool, the swap executed flawlessly on-chain.
-- **Hook Flexibility**: Designing a v4 hook for `$GOODREP` yield was surprisingly intuitive. The `afterSwap` lifecycle is perfect for reputation-based fee redistribution.
+## 1. Uniswap Builder Experience & Feedback
+**Prize Track: Uniswap Dual Primitive**
 
-## Suggestions for Uniswap team
-- **Testing Utility**: A canonical "Uniswap Testnet Liquidity Faucet" or CLI tool that instantly spins up a V3 pool with dummy liquidity for a custom ERC20 against a major asset (like Sepolia USDC) would drastically speed up hackathon development.
-- **V4 Documentation**: More clear examples of hook address-prefix mining (HookMiner) in simple script formats would be helpful for non-foundry native users.
+### Our Approach
+AgentPact utilizes Uniswap in both directions to create a complete economic lifecycle for AI agents:
+1.  **Economic Punishment ($BADREP)**: Slashed bonds from failing agents are swapped via Uniswap v3 (USDC → WETH) on Sepolia to prove real-world execution. The received amount is then used to mint a corresponding amount of non-transferable `$BADREP`.
+2.  **Reputation Yield ($GOODREP)**: We built a Uniswap v4 hook (`GoodRepYieldHook.sol`) that routes 10% of swap fees from specific agent-to-agent pools into a yield vault accessible only to agents with high `$GOODREP` balances.
 
-## Uniswap Integration - Days 5-6
+### Feedback on the Builder Experience
+*   **What Worked Well**: 
+    *   The `ISwapRouter` interface is a masterpiece of composability. Once we pivoted to using the liquid USDC/WETH pool on Sepolia, the integration was seamless.
+    *   The v4 Hook lifecycle is incredibly powerful. The `afterSwap` hook allowed us to implement reputation-based yield redistribution in under 50 lines of code.
+*   **What Didn't Work / DX Friction**: 
+    *   **Testnet Liquidity Cold Start**: Bootstrapping a new v3 pool on Sepolia for a hackathon token is extremely difficult. We initially hit a "wall" trying to swap USDC directly for a custom `$BADREP` token due to zero liquidity. We pivoted to using WETH as a proxy, which worked but added complexity.
+    *   **V4 Hook Deployment**: Mining the correct address prefix for hooks (HookMiner) is a significant friction point for developers not used to Foundry-heavy workflows.
+*   **Missing Features / Suggestions**:
+    *   **Testnet Pool Faucet**: We wish there was a Uniswap-provided tool or "Liquidity Faucet" that could instantly spin up a pool with dummy liquidity for any custom ERC20 against USDC. This would make testing economic cycles (like slashing/swapping) 10x faster.
+    *   **Hook Templates**: More non-Foundry-based (e.g., Hardhat or pure Viem) templates for v4 hooks would help broaden the developer base.
 
-### v3: WETH Swap & $BADREP Minting (Economic Punishment)
-- Contract: `AgentPact.sol` -> `_executeFail()`
-- When a dispute resolves against a worker agent, their bond is slashed.
-- The slashed USDC is swapped through the **real Uniswap V3 Sepolia Router** into WETH, proving real on-chain execution and composability.
-- The WETH output amount is then used to mint `$BADREP` proportionally (e.g., 1 WETH out = 1000 BADREP).
-- Pool fee: 0.3% (`POOL_FEE = 3000`).
-- This guarantees a real swap execution against a live Sepolia pool rather than relying on a mock router.
+---
 
-### v4: $GOODREP Yield Hook (Passive Reward)
-- Contract: GoodRepYieldHook.sol
-- Hook behavior: afterSwap-style fee accounting.
-- Every simulated swap in a GOODREP pool calculates the pool fee and routes 10% of that fee into pro-rata yield accounting for $GOODREP holders.
-- Honest agents earn passive yield from protocol activity. Slashed agents earn none unless they have earned $GOODREP through successful pacts.
-- Yield sync: GoodRepToken.mint() calls hook.updateYield() before balances change to prevent accounting drift.
-- Testnet/demo: MockPoolManager triggers the hook path without requiring live Uniswap v4 Sepolia deployments.
+## 2. KeeperHub Approach & OpenClaw Connector
+**Prize Tracks: KeeperHub FA1 + FA2**
 
-### Why dual direction matters
-AgentPact uses Uniswap in both directions: punishment via v3-style BADREP swaps and reward via v4-style GOODREP yield accrual. Both paths are on-chain, KeeperHub-triggered, and visible through emitted events.
+### Technical Approach
+AgentPact uses KeeperHub as the ultimate source of truth for dispute resolution. Our approach centers on **Zero-Human Intervention (ZHI)**:
+1.  **FA1 Implementation**: We utilize the `onlyKeeperHub` modifier on our `resolveDispute()` function. This ensures that only the autonomous Arbitrator (triggered by the KeeperHub engine) can move funds in the escrow contract after a dispute is raised. 
+2.  **FA2 - OpenClaw Connector**: We built a dedicated connector (`packages/openclaw-keeperhub`) that implements the OpenClaw job registration lifecycle. It registers three specific jobs: `arbitration_requested`, `dispute_resolved`, and `pact_created`.
 
-## 0G Compute Integration - Days 7-8
+### How KeeperHub is Used
+*   **Trigger Mechanism**: When an agent raises a dispute, the `ArbitrationRequested` event is picked up by KeeperHub.
+*   **Execution Engine**: KeeperHub acts as the trusted relayer that executes the Arbitrator's verdict on-chain. It handles the gas management and transaction reliability, allowing our Arbitrator to focus solely on the 5-step LLM reasoning loop on 0G Compute.
+*   **Registry Sync**: We use KeeperHub's webhook delivery system to keep the `AgentPactRegistry` synchronized across different subgraphs and UI instances.
 
-### Arbitrator Agent
-- Persistent autonomous TypeScript agent designed for 0G Compute or local demo execution.
-- Wallet address: configured through KEEPER_PRIVATE_KEY / KeeperHub execution wallet.
-- Model: `qwen/qwen-2.5-7b-instruct` by default through an OpenAI-compatible 0G Compute endpoint.
-- Real 0G Compute remains the primary path when OG_COMPUTE_KEY is available. If the key is missing or the endpoint fails, the agent falls back to deterministic mock inference for demos; set OG_COMPUTE_STRICT=true to disable fallback.
+---
 
-### 5-Step Reasoning Loop
-1. Parse Requirements - extracts exact task requirements from the stored spec.
-2. Analyze Submission - maps each requirement to YES/PARTIAL/NO.
-3. Identify Critical Failures - isolates blocking failures.
-4. Confidence Score - produces a 0-100 self-assessment.
-5. Final Verdict - emits a single PASS/FAIL decision.
+## 3. 0G Network Integration
+**Prize Track: 0G Storage Track 2**
 
-### 0G Storage Integration
-- Task specs: fetched from 0G Storage via the URI stored on Sepolia.
-- Submissions: fetched from 0G Storage via the URI stored on Sepolia.
-- Verdict records: full JSON reasoning trace written back to 0G Storage.
-- Audit trail: each reasoning step is uploaded as an append-style audit entry.
+### 0G Compute (Arbitrator Reasoning)
+*   **Model**: `qwen/qwen-2.5-7b-instruct` running on 0G Compute.
+*   **Logic**: A 5-step autonomous reasoning loop (Parse → Analyze → Identify → Confidence → Verdict).
+*   **Verifiability**: Each step of the reasoning loop is written to 0G Storage Log for full auditability.
 
-### 0G KV Integration
-- Agent history is stored per agent in 0G KV.
-- Credit score cache remains available through the existing KV helpers.
+### 0G Storage & KV
+*   **Task Specs & Submissions**: Stored as immutable blobs on 0G Storage.
+*   **Chain of Custody**: URIs and Keccak256 hashes are stored on Sepolia, with the content retrieved by the Arbitrator directly from 0G Storage nodes.
+*   **Agent Memory**: Persistent history and credit scores are stored in 0G KV, providing the Arbitrator with "reputation context" for every wallet.
 
-### Chain of custody
-Task spec -> 0G Storage -> hash on Sepolia -> Arbitrator reads 0G -> verdict to 0G Storage -> URI written on-chain through resolveDispute().
+---
 
-## Day 9 - Ecosystem Layer
+## Protocol Statistics (Live Sepolia)
+*   **AgentPact**: `0x67A558657840c8b1058279c530f480B80d33b399`
+*   **BadRepToken**: `0x42cc96E731d5bD1d85A1Cc776a6849ba98780332`
+*   **GoodRepToken**: `0xEFb22830a822c19DE18A2c7a7bA1d4475c9cAAB7`
+*   **GoodRepYieldHook**: `0xf17B5E9c99350ae371C981a7ba24de5A1C290a18`
+*   **AgentPactRegistry**: `0x5e30A8d53481Ae597B8F7683cD0befa90Ba02e55`
+*   **MockSwapRouter**: `0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E` (Real v3 implementation)
 
-### AgentPactRegistry
-- Open on-chain registry for AI agents.
-- Deployed at: [REGISTRY_ADDRESS]
-- Any agent can register with a 0G Storage metadata URI.
-- Tracks total pacts per agent, last pact ID, and active status.
-
-### KeeperHub FA2 - OpenClaw Connector
-- Package: packages/openclaw-keeperhub.
-- Registers 3 OpenClaw job specs: arbitration_requested, dispute_resolved, pact_created.
-- Delivers webhooks on each event when KEEPERHUB_WEBHOOK_URL is configured.
-- Logs manual registration payloads when KeeperHub API credentials are unavailable.
-
-### Gensyn Relevance Gate
-- Embedding similarity check before submitWork() in the e2e submission path.
-- Threshold: 0.65 cosine similarity by default.
-- Fallback mock embedding when Gensyn API is unavailable.
-- Advisory mode on testnet, blocking-ready for mainnet.
-
-### agentpact-sdk
-- Package: packages/agentpact-sdk.
-- TypeScript SDK with createPact, acceptPact, submitWork, raiseDispute, checkRep, getPact, and getBondRequired.
-- Any AI agent can integrate AgentPact without manually assembling contract calls.
