@@ -6,5 +6,6 @@ COPY package*.json tsconfig.json ./
 RUN npm ci
 
 COPY scripts ./scripts
+COPY packages ./packages
 
 CMD ["npx", "tsx", "scripts/arbitrator/index.ts"]
