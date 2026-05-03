@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
+import http from 'http';
 import { ArbitrationCase, AgentHistory, Verdict } from './types';
 import { appendAuditEntry, writeVerdictToStorage } from './og-log';
 import { pingCompute } from './og-compute';
@@ -151,6 +152,45 @@ async function replayRecentEvents(
   }
 }
 
+function startHealthCheck(): void {
+  const port = process.env.PORT || 10000;
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('AgentPact Arbitrator is ONLINE\n');
+  });
+  server.listen(port, () => {
+    console.log(`[Arbitrator] Health check server listening on port ${port}`);
+  });
+}
+
+async function setupListener(rpcUrl: string, address: string): Promise<void> {
+  try {
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const agentPact = new ethers.Contract(address, AGENTPACT_ABI, provider);
+
+    agentPact.on('ArbitrationRequested', async (pactId, taskSpecURI, submissionURI, agentB, event) => {
+      await processCase({
+        pactId: Number(pactId),
+        taskSpecURI,
+        submissionURI,
+        agentB,
+        requestedAt: event.log.blockNumber,
+      });
+    });
+
+    console.log(`[Arbitrator] Listening on ${address}`);
+    await replayRecentEvents(agentPact, provider);
+
+    provider.on('error', (err) => {
+      console.error('[Arbitrator] Provider error, attempting reconnect...', err);
+      setTimeout(() => void setupListener(rpcUrl, address), 10000);
+    });
+  } catch (err) {
+    console.error('[Arbitrator] Setup failed, retrying in 10s...', err);
+    setTimeout(() => void setupListener(rpcUrl, address), 10000);
+  }
+}
+
 async function main(): Promise<void> {
   const rpcUrl = process.env.SEPOLIA_RPC_URL;
   const agentPactAddress = process.env.AGENTPACT_ADDRESS;
@@ -159,28 +199,15 @@ async function main(): Promise<void> {
   }
 
   console.log('AgentPact Arbitrator Agent starting...');
+  startHealthCheck();
+  
   const computeReady = await pingCompute();
   console.log(`[Arbitrator] 0G Compute: ${computeReady ? 'READY' : 'not ready yet'}`);
 
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-  const agentPact = new ethers.Contract(agentPactAddress, AGENTPACT_ABI, provider);
-
-  agentPact.on('ArbitrationRequested', async (pactId, taskSpecURI, submissionURI, agentB, event) => {
-    await processCase({
-      pactId: Number(pactId),
-      taskSpecURI,
-      submissionURI,
-      agentB,
-      requestedAt: event.log.blockNumber,
-    });
-  });
-
-  console.log(`[Arbitrator] Listening on ${agentPactAddress}`);
-  await replayRecentEvents(agentPact, provider);
+  await setupListener(rpcUrl, agentPactAddress);
 
   process.on('SIGINT', () => {
     console.log('\n[Arbitrator] Shutting down...');
-    void agentPact.removeAllListeners();
     process.exit(0);
   });
 }
