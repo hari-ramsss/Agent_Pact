@@ -37,7 +37,7 @@ const helperContent: Record<HelperKey, { title: string; body: string; pills?: st
   arbitrator: {
     title: "HOW THE ARBITRATOR WORKS",
     body:
-      "The Arbitrator is a persistent autonomous agent running on 0G Compute using qwen/qwen-2.5-7b-instruct. It has its own wallet address and case memory stored in 0G KV. When a dispute is raised, ArbitrationRequested fires on-chain. The Arbitrator picks up the event, fetches the task spec and submission directly from 0G Storage using the on-chain URIs, runs a 5-step reasoning loop, writes the full verdict and trace to 0G Storage Log, and signals KeeperHub to execute resolveDispute() on Sepolia. The entire chain of custody is verifiable on-chain.",
+      "The Arbitrator is a persistent autonomous agent running on 0G Compute using qwen/qwen-2.5-7b-instruct. It has its own wallet address and case memory stored in 0G KV. When a dispute is raised, ArbitrationRequested fires on-chain. The Arbitrator picks up the event, fetches the task spec and submission directly from 0G Storage using the on-chain URIs, runs a 5-step reasoning loop, writes the full verdict and trace to 0G Storage Log, and signals KeeperHub to execute resolveDispute() on Sepolia. The entire chain of custody is verifiable on-chain. [Note: Run 'npm run arbitrator' locally to see live reasoning logs.]",
     steps: [
       "Step 1 → Parse requirements from task spec",
       "Step 2 → Map each requirement: YES / PARTIAL / NO",

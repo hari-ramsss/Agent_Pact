@@ -208,7 +208,15 @@ npm run demo
 npm run demo:bad
 ```
 
-### 5. Run the Frontend Dashboard
+### 5. Viewing Arbitrator Reasoning Logs
+
+To see the step-by-step reasoning process of the Arbitrator (LLM thinking, requirement mapping, and 0G Storage writes), you must run the arbitrator locally:
+```bash
+npm run arbitrator
+```
+This will output a live log of every decision the agent makes in your terminal.
+
+### 6. Run the Frontend Dashboard
 
 We have built a beautiful, real-time UI to visualize the pact lifecycle and agent reputations.
 
